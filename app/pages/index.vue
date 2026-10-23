@@ -3,14 +3,17 @@ import type { MuscleGroup } from '#shared/utils/muscle-groups'
 
 // useFetch infers the response type straight from server/api/exercises.get.ts,
 // so `exercises` is fully typed without writing an interface by hand.
+// During SSR it also forwards the session cookie, so the API knows who's asking.
 const { data: exercises, status, error, refresh } = await useFetch('/api/exercises')
 
+type ListItem = { id: number; name: string; isCustom: boolean }
+
 const groups = computed(() => {
-  const byGroup = new Map<MuscleGroup, { id: number; name: string }[]>()
-  for (const exercise of exercises.value ?? []) {
-    const list = byGroup.get(exercise.muscleGroup) ?? []
-    list.push({ id: exercise.id, name: exercise.name })
-    byGroup.set(exercise.muscleGroup, list)
+  const byGroup = new Map<MuscleGroup, ListItem[]>()
+  for (const { id, name, isCustom, muscleGroup } of exercises.value ?? []) {
+    const list = byGroup.get(muscleGroup) ?? []
+    list.push({ id, name, isCustom })
+    byGroup.set(muscleGroup, list)
   }
   // Keep the order defined in MUSCLE_GROUPS rather than alphabetical
   return MUSCLE_GROUPS.filter((group) => byGroup.has(group)).map((group) => ({
@@ -19,33 +22,31 @@ const groups = computed(() => {
     exercises: byGroup.get(group)!,
   }))
 })
+
+const customCount = computed(() => exercises.value?.filter((e) => e.isCustom).length ?? 0)
 </script>
 
 <template>
   <section>
     <h1 class="text-2xl font-bold tracking-tight">Exercise library</h1>
     <p class="mt-1 text-sm text-zinc-500">
-      {{ exercises?.length ?? 0 }} built-in exercises loaded from the database.
+      {{ exercises?.length ?? 0 }} exercises<template v-if="customCount">, {{ customCount }} of them yours</template>.
     </p>
 
-    <div v-if="status === 'pending'" class="mt-8 text-zinc-500">Loading…</div>
+    <AddExerciseForm class="mt-6" @created="refresh()" />
 
-    <div
-      v-else-if="error"
-      class="mt-8 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-    >
+    <div v-if="status === 'pending' && !exercises" class="mt-8 text-zinc-500">Loading…</div>
+
+    <div v-else-if="error" class="alert-error mt-8">
       <p class="font-medium">Couldn't load exercises.</p>
-      <p class="mt-1">
-        Did you run <code>npm run db:migrate</code> and <code>npm run db:seed</code>?
-      </p>
-      <button class="mt-3 underline" @click="refresh()">Try again</button>
+      <button class="mt-2 underline" @click="refresh()">Try again</button>
     </div>
 
     <p v-else-if="groups.length === 0" class="mt-8 text-zinc-500">
       The library is empty. Run <code>npm run db:seed</code> to add the built-in exercises.
     </p>
 
-    <div v-else class="mt-8 grid gap-4 sm:grid-cols-2">
+    <div v-else class="mt-6 grid gap-4 sm:grid-cols-2">
       <article
         v-for="group in groups"
         :key="group.key"
@@ -55,8 +56,14 @@ const groups = computed(() => {
           {{ group.label }}
         </h2>
         <ul class="mt-3 space-y-1.5">
-          <li v-for="exercise in group.exercises" :key="exercise.id" class="text-sm">
+          <li v-for="exercise in group.exercises" :key="exercise.id" class="flex items-center gap-2 text-sm">
             {{ exercise.name }}
+            <span
+              v-if="exercise.isCustom"
+              class="rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-medium text-brand-600"
+            >
+              Custom
+            </span>
           </li>
         </ul>
       </article>

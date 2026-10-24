@@ -1,72 +1,59 @@
 <script setup lang="ts">
-import type { MuscleGroup } from '#shared/utils/muscle-groups'
+useHead({ title: 'Workout Tracker' })
 
-// useFetch infers the response type straight from server/api/exercises.get.ts,
-// so `exercises` is fully typed without writing an interface by hand.
-// During SSR it also forwards the session cookie, so the API knows who's asking.
-const { data: exercises, status, error, refresh } = await useFetch('/api/exercises')
+const { data } = await useFetch('/api/workouts/active')
+const activeWorkout = computed(() => data.value?.workout ?? null)
 
-type ListItem = { id: number; name: string; isCustom: boolean }
+const starting = ref(false)
+const startError = ref('')
 
-const groups = computed(() => {
-  const byGroup = new Map<MuscleGroup, ListItem[]>()
-  for (const { id, name, isCustom, muscleGroup } of exercises.value ?? []) {
-    const list = byGroup.get(muscleGroup) ?? []
-    list.push({ id, name, isCustom })
-    byGroup.set(muscleGroup, list)
+async function startWorkout() {
+  startError.value = ''
+  starting.value = true
+  try {
+    // Returns the in-progress workout instead if there already is one
+    const { workout } = await $fetch('/api/workouts', { method: 'POST' })
+    await navigateTo(`/workouts/${workout.id}`)
+  } catch (error) {
+    startError.value = getApiErrorMessage(error)
+    starting.value = false
   }
-  // Keep the order defined in MUSCLE_GROUPS rather than alphabetical
-  return MUSCLE_GROUPS.filter((group) => byGroup.has(group)).map((group) => ({
-    key: group,
-    label: MUSCLE_GROUP_LABELS[group],
-    exercises: byGroup.get(group)!,
-  }))
-})
-
-const customCount = computed(() => exercises.value?.filter((e) => e.isCustom).length ?? 0)
+}
 </script>
 
 <template>
   <section>
-    <h1 class="text-2xl font-bold tracking-tight">Exercise library</h1>
-    <p class="mt-1 text-sm text-zinc-500">
-      {{ exercises?.length ?? 0 }} exercises<template v-if="customCount">, {{ customCount }} of them yours</template>.
-    </p>
-
-    <AddExerciseForm class="mt-6" @created="refresh()" />
-
-    <div v-if="status === 'pending' && !exercises" class="mt-8 text-zinc-500">Loading…</div>
-
-    <div v-else-if="error" class="alert-error mt-8">
-      <p class="font-medium">Couldn't load exercises.</p>
-      <button class="mt-2 underline" @click="refresh()">Try again</button>
+    <div
+      v-if="activeWorkout"
+      class="rounded-2xl border border-brand-500/40 bg-brand-500/10 p-6"
+    >
+      <p class="text-sm font-medium text-brand-600">Workout in progress</p>
+      <p class="mt-1 text-4xl font-bold tracking-tight">
+        <WorkoutTimer :started-at="activeWorkout.startedAt" />
+      </p>
+      <NuxtLink :to="`/workouts/${activeWorkout.id}`" class="btn-primary mt-5 w-full sm:w-auto">
+        Resume workout
+      </NuxtLink>
     </div>
 
-    <p v-else-if="groups.length === 0" class="mt-8 text-zinc-500">
-      The library is empty. Run <code>npm run db:seed</code> to add the built-in exercises.
-    </p>
-
-    <div v-else class="mt-6 grid gap-4 sm:grid-cols-2">
-      <article
-        v-for="group in groups"
-        :key="group.key"
-        class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-      >
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-brand-600">
-          {{ group.label }}
-        </h2>
-        <ul class="mt-3 space-y-1.5">
-          <li v-for="exercise in group.exercises" :key="exercise.id" class="flex items-center gap-2 text-sm">
-            {{ exercise.name }}
-            <span
-              v-if="exercise.isCustom"
-              class="rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-medium text-brand-600"
-            >
-              Custom
-            </span>
-          </li>
-        </ul>
-      </article>
+    <div v-else class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <h1 class="text-2xl font-bold tracking-tight">Ready to train?</h1>
+      <p class="mt-1 text-sm text-zinc-500">Start a session and log your sets as you go.</p>
+      <button type="button" class="btn-primary mt-5 w-full py-3 text-base sm:w-auto" :disabled="starting" @click="startWorkout">
+        {{ starting ? 'Starting…' : 'Start workout' }}
+      </button>
+      <p v-if="startError" role="alert" class="alert-error mt-4">{{ startError }}</p>
     </div>
+
+    <NuxtLink
+      to="/exercises"
+      class="mt-4 flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4 hover:border-brand-500/50 dark:border-zinc-800 dark:bg-zinc-900"
+    >
+      <span>
+        <span class="block font-medium">Exercise library</span>
+        <span class="text-sm text-zinc-500">Browse exercises or add your own</span>
+      </span>
+      <span aria-hidden="true" class="text-zinc-400">→</span>
+    </NuxtLink>
   </section>
 </template>

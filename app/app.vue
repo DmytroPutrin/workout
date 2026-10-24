@@ -12,9 +12,16 @@ async function logout() {
   <div class="min-h-dvh">
     <header class="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div class="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3">
-        <NuxtLink to="/" class="text-lg font-semibold tracking-tight">
-          <span class="text-brand-600">●</span> Workout Tracker
-        </NuxtLink>
+        <div class="flex items-center gap-6">
+          <NuxtLink to="/" class="text-lg font-semibold tracking-tight">
+            <span class="text-brand-600">●</span> <span class="hidden sm:inline">Workout Tracker</span>
+          </NuxtLink>
+
+          <nav v-if="loggedIn" class="flex items-center gap-4 text-sm">
+            <NuxtLink to="/" class="nav-link" exact-active-class="nav-link-active">Workout</NuxtLink>
+            <NuxtLink to="/exercises" class="nav-link" active-class="nav-link-active">Exercises</NuxtLink>
+          </nav>
+        </div>
 
         <div v-if="loggedIn" class="flex items-center gap-3">
           <span class="hidden text-sm text-zinc-500 sm:inline">{{ user?.email }}</span>

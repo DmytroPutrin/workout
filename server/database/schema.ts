@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { MUSCLE_GROUPS } from '../../shared/utils/muscle-groups'
 
 // SQLite stores timestamps as unix seconds; mode: 'timestamp' maps them to JS Date objects.
@@ -42,7 +42,16 @@ export const workouts = sqliteTable(
     finishedAt: integer('finished_at', { mode: 'timestamp' }),
     notes: text('notes'),
   },
-  (t) => [index('workouts_user_started_idx').on(t.userId, t.startedAt)],
+  (t) => [
+    index('workouts_user_started_idx').on(t.userId, t.startedAt),
+    // At most one unfinished workout per user. A *partial* unique index only covers
+    // rows matching the WHERE clause, so finished workouts don't count. Because the
+    // database enforces it, even two "Start workout" requests at the same moment
+    // (a double tap) can't both create one.
+    uniqueIndex('workouts_one_active_per_user_idx')
+      .on(t.userId)
+      .where(sql`finished_at is null`),
+  ],
 )
 
 export const workoutSets = sqliteTable(

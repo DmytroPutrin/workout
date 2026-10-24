@@ -16,6 +16,14 @@ export function useDb() {
       url: config.databaseUrl,
       authToken: config.databaseAuthToken || undefined,
     })
+
+    // SQLite only enforces foreign keys when the connection turns them on. Without
+    // this, ON DELETE CASCADE / RESTRICT in the schema would silently do nothing.
+    // For a local file the client applies this immediately, before any query runs.
+    client.execute('PRAGMA foreign_keys = ON').catch((error) => {
+      console.error('[db] Could not enable foreign keys:', error)
+    })
+
     _db = drizzle(client, { schema })
   }
   return _db

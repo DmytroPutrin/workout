@@ -1,8 +1,13 @@
 <script setup lang="ts">
 useHead({ title: 'Workout Tracker' })
 
-const { data } = await useFetch('/api/workouts/active')
-const activeWorkout = computed(() => data.value?.workout ?? null)
+// Both requests run in parallel rather than one after the other
+const [{ data: active }, { data: recent }] = await Promise.all([
+  useFetch('/api/workouts/active'),
+  useFetch('/api/workouts', { query: { limit: 3 } }),
+])
+const activeWorkout = computed(() => active.value?.workout ?? null)
+const recentWorkouts = computed(() => recent.value?.items ?? [])
 
 const starting = ref(false)
 const startError = ref('')
@@ -45,15 +50,16 @@ async function startWorkout() {
       <p v-if="startError" role="alert" class="alert-error mt-4">{{ startError }}</p>
     </div>
 
-    <NuxtLink
-      to="/exercises"
-      class="mt-4 flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4 hover:border-brand-500/50 dark:border-zinc-800 dark:bg-zinc-900"
-    >
-      <span>
-        <span class="block font-medium">Exercise library</span>
-        <span class="text-sm text-zinc-500">Browse exercises or add your own</span>
-      </span>
-      <span aria-hidden="true" class="text-zinc-400">→</span>
-    </NuxtLink>
+    <template v-if="recentWorkouts.length">
+      <div class="mt-8 flex items-baseline justify-between">
+        <h2 class="text-sm font-semibold">Recent workouts</h2>
+        <NuxtLink to="/history" class="link text-sm">See all</NuxtLink>
+      </div>
+      <ul class="mt-3 space-y-3">
+        <li v-for="workout in recentWorkouts" :key="workout.id">
+          <WorkoutCard :workout="workout" />
+        </li>
+      </ul>
+    </template>
   </section>
 </template>

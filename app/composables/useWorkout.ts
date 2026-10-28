@@ -112,9 +112,10 @@ export async function useWorkout(workoutId: number) {
     update((current) => ({ ...current, workout: result.workout }))
   }
 
-  async function discard() {
+  /** Deletes the workout (in progress or finished) and its sets, then navigates away. */
+  async function discard(redirectTo = '/') {
     await $fetch(`/api/workouts/${workoutId}`, { method: 'DELETE' })
-    await navigateTo('/')
+    await navigateTo(redirectTo, { replace: true })
   }
 
   return {

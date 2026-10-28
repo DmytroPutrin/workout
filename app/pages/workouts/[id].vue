@@ -56,7 +56,8 @@ async function discard() {
   actionError.value = ''
   discarding.value = true
   try {
-    await session.discard()
+    // A finished workout was opened from history, so go back there
+    await session.discard(isActive.value ? '/' : '/history')
   } catch (error) {
     actionError.value = getApiErrorMessage(error)
     discarding.value = false
@@ -65,7 +66,27 @@ async function discard() {
 </script>
 
 <template>
-  <WorkoutSummary v-if="!isActive" :workout="workout" :groups="groups" />
+  <section v-if="!isActive">
+    <WorkoutSummary :workout="workout" :groups="groups" />
+
+    <p v-if="actionError" role="alert" class="alert-error mt-6">{{ actionError }}</p>
+
+    <div class="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+      <button
+        type="button"
+        class="btn-secondary"
+        :class="confirmingDiscard && 'border-red-500 text-red-600'"
+        :disabled="discarding"
+        @click="discard"
+      >
+        {{ discarding ? 'Deleting…' : confirmingDiscard ? 'Tap again to delete' : 'Delete workout' }}
+      </button>
+      <div class="flex gap-3">
+        <NuxtLink to="/history" class="btn-secondary flex-1 sm:flex-none">History</NuxtLink>
+        <NuxtLink to="/" class="btn-primary flex-1 sm:flex-none">Done</NuxtLink>
+      </div>
+    </div>
+  </section>
 
   <section v-else>
     <div class="flex items-end justify-between gap-4">

@@ -79,7 +79,5 @@ function bestSetId(sets: WorkoutSetRow[]) {
       <h2 class="text-sm font-semibold">Notes</h2>
       <p class="mt-1 whitespace-pre-line text-sm text-zinc-600 dark:text-zinc-400">{{ workout.notes }}</p>
     </div>
-
-    <NuxtLink to="/" class="btn-primary mt-8">Done</NuxtLink>
   </section>
 </template>

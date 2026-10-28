@@ -22,7 +22,9 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Workout Tracker',
-      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
+      // viewport-fit=cover lets the bottom tab bar respect the iPhone home indicator
+      // via env(safe-area-inset-bottom)
+      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' }],
     },
   },
 })

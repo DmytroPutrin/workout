@@ -2,7 +2,7 @@
 
 A full-stack workout logging app built with Nuxt 4. Log your sets, review your history, and track progress on each lift over time.
 
-> **Status:** Milestone 3 of 5 — log workouts: start a session, record sets, finish.
+> **Status:** Milestone 4 of 5 — workout history and progress charts.
 
 ## Tech stack
 
@@ -41,6 +41,7 @@ Open the app, create an account, and tap **Start workout**.
 | `GET /api/exercises`       | ✓    | Built-in exercises plus your custom ones         |
 | `POST /api/exercises`      | ✓    | Add a custom exercise                            |
 | `GET /api/exercises/:id/last` | ✓ | Your sets for this exercise in your last finished workout |
+| `GET /api/workouts`       | ✓    | Finished workouts, newest first: `?limit=20&cursor=…` |
 | `GET /api/workouts/active` | ✓    | Your workout in progress, or `null`              |
 | `POST /api/workouts`       | ✓    | Start a workout (returns the active one if any)  |
 | `GET /api/workouts/:id`    | ✓    | A workout with all its sets                      |
@@ -49,6 +50,8 @@ Open the app, create an account, and tap **Start workout**.
 | `POST /api/workouts/:id/sets` | ✓ | Log a set: `{ exerciseId, reps, weightKg }`      |
 | `PATCH /api/sets/:id`      | ✓    | Edit a set's reps or weight                      |
 | `DELETE /api/sets/:id`     | ✓    | Delete a set                                     |
+| `GET /api/progress`        | ✓    | Exercises you've trained, most recent first      |
+| `GET /api/progress/:exerciseId` | ✓ | Per-workout series (best weight, est. 1RM, volume, reps) and personal records |
 
 Errors use one shape: `{ statusCode, message, data? }`. Validation errors (400) also include `data.fieldErrors`.
 
@@ -56,10 +59,17 @@ Errors use one shape: `{ statusCode, message, data? }`. Validation errors (400) 
 
 - **One workout in progress per user**, enforced by a *partial unique index* on `workouts(user_id) WHERE finished_at IS NULL`. `POST /api/workouts` is "start or resume", and if two starts race (a double tap), the index rejects the second insert and the API returns the first workout instead.
 - **Ownership:** every workout and set lookup is scoped to the logged-in user. Another user's IDs return **404**, not 403, so the API never confirms that someone else's workout exists.
-- **Finished workouts are read-only** (409 on changes). Editing past workouts is planned for the history milestone.
+- **Finished workouts are read-only** (409 on changes); they can be deleted from their summary page.
 - **"Last time" hint:** each exercise card shows your sets from the most recent finished workout and pre-fills the inputs.
 - **Discarding** deletes the sets and the workout in one `batch()` transaction, so it never relies on SQLite's foreign-key enforcement being switched on.
 - **Client state** lives in `app/composables/useWorkout.ts` and is shared with child components through `provide`/`inject`. Each action calls the API first and updates local state only after the server confirms.
+
+## How history and progress work
+
+- **Keyset pagination.** `GET /api/workouts` returns a `nextCursor` (`<startedAt>_<id>` of the last item). The next page continues with `WHERE (started_at, id) < cursor` instead of `OFFSET`, so the database doesn't re-read earlier rows, and adding or deleting workouts between page loads never duplicates or skips items. `id` breaks ties between workouts started in the same second.
+- **Totals are computed in SQL** with `GROUP BY` and `LEFT JOIN`, so a workout's set count, exercise count and volume come back in one query.
+- **Estimated 1RM** uses the Epley formula, `weight × (1 + reps / 30)`, so sets with different rep counts can be compared on one line; a single rep counts as-is.
+- **The chart** (`app/components/LineChart.vue`) is a dependency-free SVG component: time-proportional x-axis, readable y-axis steps, hover/touch tooltip, and a screen-reader table of the data. It renders in the browser only, because it needs its real width and the viewer's locale and time zone.
 
 ## How auth works
 
@@ -76,8 +86,8 @@ Errors use one shape: `{ statusCode, message, data? }`. Validation errors (400) 
 
 ```
 app/                     # Vue frontend
-  pages/                 # /, /exercises, /workouts/[id], /login, /register
-  components/            # ExerciseSetsCard, ExercisePicker, WorkoutSummary, …
+  pages/                 # /, /history, /progress, /exercises, /workouts/[id], /login, /register
+  components/            # LineChart, WorkoutCard, ExerciseSetsCard, ExercisePicker, …
   composables/           # useWorkout(): state + actions for one workout
 server/
   api/                   # API routes: file name = URL + HTTP method
@@ -120,5 +130,5 @@ shared/
 - [x] **1. Setup** — Nuxt, Drizzle, schema, migrations, seed data
 - [x] **2. Auth** — register, log in, protected routes, custom exercises
 - [x] **3. Logging** — start a workout, add sets, finish
-- [ ] **4. History & progress** — workout list, detail view, progress charts
+- [x] **4. History & progress** — workout list, progress charts, personal records
 - [ ] **5. Ship** — tests, CI, deployment

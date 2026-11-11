@@ -1,8 +1,8 @@
 # Workout Tracker
 
-A full-stack workout logging app built with Nuxt 4. Log your sets, review your history, and track progress on each lift over time.
+[![CI](https://github.com/DmytroPutrin/workout/actions/workflows/ci.yml/badge.svg)](https://github.com/DmytroPutrin/workout/actions/workflows/ci.yml)
 
-> **Status:** Milestone 4 of 5 — workout history and progress charts.
+A full-stack workout logging app built with Nuxt 4. Log your sets, review your history, and track progress on each lift over time.
 
 ## Tech stack
 
@@ -11,7 +11,8 @@ A full-stack workout logging app built with Nuxt 4. Log your sets, review your h
 - **Tailwind CSS v4**
 - **nuxt-auth-utils** for encrypted cookie sessions and scrypt password hashing
 - **Zod** schemas shared by the forms and the API
-- Coming next: Chart.js, Vitest, Playwright
+- **Node's built-in test runner** (`node:test`, run through tsx) for unit and API tests
+- **GitHub Actions** for CI, **Vercel + Turso** for hosting
 
 ## Getting started
 
@@ -21,8 +22,7 @@ Requires **Node.js 22+**.
 npm install
 cp .env.example .env
 
-npm run db:generate   # create SQL migrations from server/database/schema.ts
-npm run db:migrate    # apply them to local.db
+npm run db:migrate    # create local.db from the migrations in server/database/migrations
 npm run db:seed       # add the built-in exercises
 
 npm run dev           # http://localhost:3000
@@ -82,6 +82,59 @@ Errors use one shape: `{ statusCode, message, data? }`. Validation errors (400) 
 
 `npm run db:studio` opens Drizzle Studio to browse the database in your browser.
 
+## Testing
+
+```bash
+npm run test:unit                    # fast, no server: validation, formatting, redirect safety
+npm run build && npm run test:api    # API and page tests against the production build
+npm test                             # both (after a build)
+```
+
+- **Unit tests** (`test/unit/`) cover the pure functions both sides rely on: the Zod schemas, number and time formatting, and the open-redirect guard.
+- **API and page tests** (`test/api/`) start the real production build (`.output/server/index.mjs`) for each test file, against a fresh SQLite database created from the committed migrations and the real seed script. They log in with real session cookies, so nothing is mocked: routing, auth, validation, the production error format, SQL, and server-side rendering are all exercised.
+- They cover the things most likely to break silently: one user never seeing or changing another's data, eight simultaneous "Start workout" taps creating one workout, every workout appearing exactly once across history pages, and the estimated-1RM maths.
+
+No test framework is installed: `node:test` ships with Node, and `tsx` (already used for the seed script) runs the TypeScript.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request: `npm ci` → type-check → unit tests → build → API and page tests.
+
+## Deployment (Vercel + Turso)
+
+The app runs on Vercel's serverless functions; the database is [Turso](https://turso.tech), hosted libSQL (SQLite over HTTP). Both have free plans.
+
+**1. Create the database** (with the [Turso CLI](https://docs.turso.tech/cli/introduction), or in the Turso dashboard):
+
+```bash
+turso db create workout-tracker
+turso db show workout-tracker --url        # libsql://workout-tracker-<you>.turso.io
+turso db tokens create workout-tracker     # the auth token
+```
+
+**2. Create the tables and the exercise library** from your machine:
+
+```bash
+export NUXT_DATABASE_URL="libsql://workout-tracker-<you>.turso.io"
+export NUXT_DATABASE_AUTH_TOKEN="<token>"
+npm run db:migrate
+npm run db:seed
+```
+
+**3. Deploy on Vercel:** *Add New → Project*, import this repository (the Nuxt preset is detected), and add these environment variables before deploying:
+
+| Variable                   | Value                                   |
+| -------------------------- | --------------------------------------- |
+| `NUXT_DATABASE_URL`        | the `libsql://…` URL from step 1        |
+| `NUXT_DATABASE_AUTH_TOKEN` | the token from step 1                   |
+| `NUXT_SESSION_PASSWORD`    | output of `openssl rand -base64 32`     |
+
+Every push to `main` then deploys automatically, and pull requests get preview deployments. Previews use the same database unless you give the *Preview* environment its own Turso database.
+
+**Schema changes later:** run `npm run db:generate`, commit the new migration, and run `npm run db:migrate` against Turso (step 2) before pushing code that depends on it.
+
+**Why the `#drizzle-libsql` alias:** the default libSQL driver loads a native SQLite binary at startup, which Vercel's serverless bundles don't include. `nuxt.config.ts` points the alias at the fetch-based driver when building on Vercel and at the full driver (which also handles local `file:` databases) everywhere else.
+
 ## Project structure
 
 ```
@@ -99,7 +152,12 @@ server/
                          #   getIdParam(), requireOwnedWorkout(), …
 shared/
   utils/                 # used by app/ and server/: Zod schemas, muscle groups
-  types/auth.d.ts        # shape of the session user
+  types/                 # session user shape, '#drizzle-libsql' alias types
+test/
+  unit/                  # pure functions, no server
+  api/                   # API and page tests against the production build
+  helpers/app.ts         # starts the built server with a fresh database
+.github/workflows/ci.yml # CI pipeline
 ```
 
 ## Data model
@@ -118,6 +176,7 @@ shared/
 | `NUXT_DATABASE_URL`        | `file:local.db` locally, `libsql://…` for Turso                |
 | `NUXT_DATABASE_AUTH_TOKEN` | Turso token (production only)                                  |
 | `NUXT_SESSION_PASSWORD`    | 32+ character secret for session cookies; auto-generated in dev |
+| `VERCEL`                   | Set by Vercel during builds; switches to the fetch-based database driver |
 
 ## Changing the schema
 
@@ -131,4 +190,4 @@ shared/
 - [x] **2. Auth** — register, log in, protected routes, custom exercises
 - [x] **3. Logging** — start a workout, add sets, finish
 - [x] **4. History & progress** — workout list, progress charts, personal records
-- [ ] **5. Ship** — tests, CI, deployment
+- [x] **5. Ship** — unit and API tests, CI, Vercel + Turso deployment

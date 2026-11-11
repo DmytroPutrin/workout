@@ -12,6 +12,16 @@ export default defineNuxtConfig({
     plugins: [tailwindcss()],
   },
 
+  nitro: {
+    alias: {
+      // The default libSQL driver loads a native SQLite binary at startup, which
+      // Vercel's serverless bundles don't include ("Cannot find module
+      // '@libsql/linux-x64-gnu'"). On Vercel the database is always remote (Turso),
+      // so use the fetch-based driver there. Vercel sets VERCEL=1 during builds.
+      '#drizzle-libsql': process.env.VERCEL ? 'drizzle-orm/libsql/web' : 'drizzle-orm/libsql',
+    },
+  },
+
   // Server-only config. Override any key with an env var:
   // databaseUrl -> NUXT_DATABASE_URL, databaseAuthToken -> NUXT_DATABASE_AUTH_TOKEN
   runtimeConfig: {

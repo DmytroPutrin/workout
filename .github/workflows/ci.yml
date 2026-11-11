@@ -1,0 +1,45 @@
+   name: CI
+
+   on:
+     push:
+       branches: [main]
+     pull_request:
+
+   # Read-only token: this workflow only checks code, it never writes to the repo
+   permissions:
+     contents: read
+
+   # A newer push to the same branch cancels the run that's still going
+   concurrency:
+     group: ci-${{ github.ref }}
+     cancel-in-progress: true
+
+   jobs:
+     test:
+       name: Type-check, test and build
+       runs-on: ubuntu-latest
+       timeout-minutes: 15
+
+       steps:
+         - uses: actions/checkout@v5
+
+         - uses: actions/setup-node@v5
+           with:
+             node-version: 22
+             cache: npm
+
+         # Installs exactly what package-lock.json says, and fails if package.json disagrees
+         - run: npm ci
+
+         - name: Type-check
+           run: npm run typecheck
+
+         - name: Unit tests
+           run: npm run test:unit
+
+         - name: Build
+           run: npm run build
+
+         # Starts the production build against a fresh SQLite database per test file
+         - name: API and page tests
+           run: npm run test:api

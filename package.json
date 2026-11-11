@@ -2,12 +2,18 @@
   "name": "workout-tracker",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "typecheck": "nuxt typecheck",
+    "test": "npm run test:unit && npm run test:api",
+    "test:unit": "tsx --test \"test/unit/**/*.test.ts\"",
+    "test:api": "tsx --test --test-concurrency=1 \"test/api/**/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx server/database/seed.ts",
@@ -19,7 +25,6 @@
     "nuxt": "^4.1.0",
     "nuxt-auth-utils": "^0.5.0",
     "vue": "^3.5.0",
-    "vue-router": "^4.5.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {

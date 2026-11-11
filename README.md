@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/DmytroPutrin/workout/actions/workflows/ci.yml/badge.svg)](https://github.com/DmytroPutrin/workout/actions/workflows/ci.yml)
 
+**Live demo:** https://workout-lac-eight.vercel.app/
+
 A full-stack workout logging app built with Nuxt 4. Log your sets, review your history, and track progress on each lift over time.
 
 ## Tech stack
